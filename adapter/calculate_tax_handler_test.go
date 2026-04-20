@@ -2,48 +2,114 @@ package adapter_test
 
 import (
 	"bytes"
-	"os"
+	"math"
+	"strings"
 	"testing"
 
 	"codechallenge.test/adapter"
 	"codechallenge.test/domain"
 )
 
-type stubUseCaseFunc struct {
+type stubServiceFunc struct {
 	funcExecute func(operations []domain.OperationStock) []domain.TaxPay
 }
 
-func (fn stubUseCaseFunc) Execute(operations []domain.OperationStock) []domain.TaxPay {
+func (fn stubServiceFunc) Execute(operations []domain.OperationStock) []domain.TaxPay {
 	return fn.funcExecute(operations)
 }
 
-// Test is breaking cant read output
-func TestExecute(t *testing.T) {
-	s := stubUseCaseFunc{
+func TestExecute_ValidInput(t *testing.T) {
+	s := stubServiceFunc{
 		funcExecute: func(operations []domain.OperationStock) []domain.TaxPay {
 			return []domain.TaxPay{{Tax: 0}, {Tax: 10000}}
 		},
 	}
 
-	mockInput := `[{"operation":"buy", "unit-cost":10.00, "quantity": 10000}, {"operation":"sell", "unit-cost":20.00, "quantity": 5000}]`
-	expectedOutput := `[{"tax":0}, {"tax":10000}]`
-
-	oldStdin := os.Stdin
-	defer func() { os.Stdin = oldStdin }()
-	r, w, _ := os.Pipe()
-	os.Stdin = r
+	mockInput := "[{\"operation\":\"buy\", \"unit-cost\":10.00, \"quantity\": 10000}, {\"operation\":\"sell\", \"unit-cost\":20.00, \"quantity\": 5000}]\n"
+	expectedOutput := "[{\"tax\":0},{\"tax\":10000}]\n"
 
 	var output bytes.Buffer
-	handler := adapter.NewCalculateTaxHandler(&output, s)
+	handler := adapter.NewCalculateTaxHandler(strings.NewReader(mockInput), &output, s)
+	handler.Execute()
 
-	w.Write([]byte(mockInput))
-	w.Close()
+	if output.String() != expectedOutput {
+		t.Errorf("Expected output %q, but got %q", expectedOutput, output.String())
+	}
+}
 
-	go handler.Execute()
+func TestExecute_InvalidJSON(t *testing.T) {
+	s := stubServiceFunc{
+		funcExecute: func(operations []domain.OperationStock) []domain.TaxPay {
+			t.Fatal("service should not be called for invalid JSON")
+			return nil
+		},
+	}
 
-	actualOutput := output.String()
+	mockInput := "invalid json\n"
 
-	if actualOutput != expectedOutput {
-		t.Errorf("Expected output %q, but got %q", expectedOutput, actualOutput)
+	var output bytes.Buffer
+	handler := adapter.NewCalculateTaxHandler(strings.NewReader(mockInput), &output, s)
+	handler.Execute()
+
+	if output.String() != "" {
+		t.Errorf("Expected empty output for invalid JSON, but got %q", output.String())
+	}
+}
+
+func TestExecute_InvalidJSONFollowedByValid(t *testing.T) {
+	s := stubServiceFunc{
+		funcExecute: func(operations []domain.OperationStock) []domain.TaxPay {
+			return []domain.TaxPay{{Tax: 0}}
+		},
+	}
+
+	mockInput := "not json\n[{\"operation\":\"buy\", \"unit-cost\":10.00, \"quantity\": 100}]\n"
+	expectedOutput := "[{\"tax\":0}]\n"
+
+	var output bytes.Buffer
+	handler := adapter.NewCalculateTaxHandler(strings.NewReader(mockInput), &output, s)
+	handler.Execute()
+
+	if output.String() != expectedOutput {
+		t.Errorf("Expected output %q, but got %q", expectedOutput, output.String())
+	}
+}
+
+func TestExecute_MarshalError(t *testing.T) {
+	s := stubServiceFunc{
+		funcExecute: func(operations []domain.OperationStock) []domain.TaxPay {
+			return []domain.TaxPay{{Tax: math.NaN()}}
+		},
+	}
+
+	mockInput := "[{\"operation\":\"buy\", \"unit-cost\":10.00, \"quantity\": 100}]\n"
+
+	var output bytes.Buffer
+	handler := adapter.NewCalculateTaxHandler(strings.NewReader(mockInput), &output, s)
+	handler.Execute()
+
+	if output.String() != "" {
+		t.Errorf("Expected empty output on marshal error, but got %q", output.String())
+	}
+}
+
+func TestExecute_MultipleInputLines(t *testing.T) {
+	callCount := 0
+	s := stubServiceFunc{
+		funcExecute: func(operations []domain.OperationStock) []domain.TaxPay {
+			callCount++
+			return []domain.TaxPay{{Tax: float64(callCount * 100)}}
+		},
+	}
+
+	mockInput := "[{\"operation\":\"buy\", \"unit-cost\":10.00, \"quantity\": 100}]\n[{\"operation\":\"sell\", \"unit-cost\":20.00, \"quantity\": 50}]\n"
+
+	var output bytes.Buffer
+	handler := adapter.NewCalculateTaxHandler(strings.NewReader(mockInput), &output, s)
+	handler.Execute()
+
+	expectedOutput := "[{\"tax\":100}]\n[{\"tax\":200}]\n"
+	if output.String() != expectedOutput {
+		t.Errorf("Expected output %q, but got %q", expectedOutput, output.String())
 	}
 }

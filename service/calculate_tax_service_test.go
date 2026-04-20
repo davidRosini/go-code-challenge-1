@@ -114,17 +114,44 @@ func TestCalculateTaxService_Execute(t *testing.T) {
 			wantTaxes: []domain.TaxPay{{Tax: 0}, {Error: "Can't sell more stocks than you have"}, {Tax: 10000}},
 		},
 		{
-			name: "Test case 11 - Block account operations after 3 tries",
+			name: "Test case 11 - Block account operations after 3 error tries",
 			operations: []domain.OperationStock{
 				{Operation: "sell", UnitCost: 20.00, Quantity: 10000},
 				{Operation: "sell", UnitCost: 20.00, Quantity: 10000},
 				{Operation: "sell", UnitCost: 20.00, Quantity: 10000},
 				{Operation: "buy", UnitCost: 10.00, Quantity: 10000},
 			},
-			wantTaxes: []domain.TaxPay{{Error: "Can't sell more stocks than you have"},
+			wantTaxes: []domain.TaxPay{
 				{Error: "Can't sell more stocks than you have"},
 				{Error: "Can't sell more stocks than you have"},
-				{Error: "Your account is blocked"}},
+				{Error: "Can't sell more stocks than you have"},
+				{Error: "Your account is blocked"},
+			},
+		},
+		{
+			name:       "Test case 12 - Unknown operation returns error",
+			operations: []domain.OperationStock{{Operation: "transfer", UnitCost: 10.00, Quantity: 100}},
+			wantTaxes:  []domain.TaxPay{{Error: "Unknown operation: transfer"}},
+		},
+		{
+			name: "Test case 13 - Block account after 3 unknown operations",
+			operations: []domain.OperationStock{
+				{Operation: "transfer", UnitCost: 10.00, Quantity: 100},
+				{Operation: "swap", UnitCost: 10.00, Quantity: 100},
+				{Operation: "merge", UnitCost: 10.00, Quantity: 100},
+				{Operation: "buy", UnitCost: 10.00, Quantity: 100},
+			},
+			wantTaxes: []domain.TaxPay{
+				{Error: "Unknown operation: transfer"},
+				{Error: "Unknown operation: swap"},
+				{Error: "Unknown operation: merge"},
+				{Error: "Your account is blocked"},
+			},
+		},
+		{
+			name:       "Test case 14 - Empty operations list",
+			operations: []domain.OperationStock{},
+			wantTaxes:  nil,
 		},
 	}
 
@@ -134,17 +161,11 @@ func TestCalculateTaxService_Execute(t *testing.T) {
 			gotTaxes := uc.Execute(tt.operations)
 
 			if len(gotTaxes) != len(tt.wantTaxes) {
-				t.Errorf("Execute() got = %v, want %v", gotTaxes, tt.wantTaxes)
+				t.Fatalf("Execute() length got = %d, want %d\ngot:  %v\nwant: %v", len(gotTaxes), len(tt.wantTaxes), gotTaxes, tt.wantTaxes)
 			}
 
 			if !reflect.DeepEqual(gotTaxes, tt.wantTaxes) {
 				t.Errorf("Execute() got = %v, want %v", gotTaxes, tt.wantTaxes)
-			}
-
-			for i := range gotTaxes {
-				if gotTaxes[i].Tax != tt.wantTaxes[i].Tax {
-					t.Errorf("Execute() got = %v, want %v", gotTaxes, tt.wantTaxes)
-				}
 			}
 		})
 	}

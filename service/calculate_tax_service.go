@@ -36,16 +36,16 @@ func (ctu *CalculateTaxService) Execute(operations []domain.OperationStock) []do
 	for _, op := range operations {
 		var newState domain.OperationState
 
-		if operationState.OperationsError >= 3 {
-			break
-		}
-
 		switch op.Operation {
-
 		case "buy":
 			newState = ctu.buyOperationUsecase.Execute(op, operationState.SharesHeld, operationState.SharesWeightedAverage)
 		case "sell":
 			newState = ctu.sellOperationUsecase.Execute(op, *operationState)
+		default:
+			newState = domain.OperationState{
+				Tax: domain.TaxPay{Error: "Unknown operation: " + op.Operation},
+			}
+			newState.OperationsError = 1
 		}
 
 		updateOperationState(operationState, newState)

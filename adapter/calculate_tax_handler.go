@@ -5,26 +5,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 
 	"codechallenge.test/domain"
 	"codechallenge.test/service"
 )
 
 type CalculateTaxHandler struct {
+	in      io.Reader
 	out     io.Writer
 	service service.ICalculateTaxService
 }
 
-func NewCalculateTaxHandler(out io.Writer, cts service.ICalculateTaxService) *CalculateTaxHandler {
+func NewCalculateTaxHandler(in io.Reader, out io.Writer, cts service.ICalculateTaxService) *CalculateTaxHandler {
 	return &CalculateTaxHandler{
+		in:      in,
 		out:     out,
 		service: cts,
 	}
 }
 
 func (cth *CalculateTaxHandler) Execute() {
-	reader := bufio.NewReader(os.Stdin)
+	reader := bufio.NewReader(cth.in)
 
 	for {
 		input, err := reader.ReadString('\n')
@@ -38,11 +39,7 @@ func (cth *CalculateTaxHandler) Execute() {
 			continue
 		}
 
-		ch := make(chan []domain.TaxPay)
-		go func() {
-			ch <- cth.service.Execute(operations)
-		}()
-		taxes := <-ch
+		taxes := cth.service.Execute(operations)
 
 		jsonResult, err := json.Marshal(taxes)
 		if err != nil {

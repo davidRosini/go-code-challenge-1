@@ -6,34 +6,46 @@ This challenge is written in Golang to process user input in `json` format to ca
 ``` 
 After processing, the output will be generated in the format:
 ```
-[{"tax":0}, {"tax":10000}]
+[{"tax":0},{"tax":10000}]
 ``` 
 
 ## Project Structure
 
-```capital-gains/
+```
+capital-gains/
   adapter/
-    ...
+    calculate_tax_handler.go
+    calculate_tax_handler_test.go
+  commons/
+    helper.go
+    helper_test.go
   domain/
-    ...
+    operation_state.go
+    operation_stock.go
+    tax_pay.go
   service/
-    ...
+    calculate_tax_service.go
+    calculate_tax_service_test.go
   usecase/
-    ...
+    buy_operation_usecase.go
+    buy_operation_usecase_test.go
+    sell_operation_usecase.go
+    sell_operation_usecase_test.go
   main.go
   go.mod
 ```
 
-### Application Divided into 3 Layers:
+### Application Divided into 4 Layers:
 
-- `adapter` layer for reading and generating the application output while interacting with the `service` layer
-- `service` layer that orchestrates the use cases for execution
-- `usecase` layer that focuses on the execution rules of the application
-- `domain` layer shared to define the data model used by the application
+- `adapter` — handles I/O (reads stdin, writes JSON to stdout) and interacts with the `service` layer
+- `service` — orchestrates the use cases for execution
+- `usecase` — contains the business rules for buy and sell operations
+- `domain` — shared data models used across all layers
+- `commons` — utility functions (weighted average, percentage, rounding)
 
 ## Installation
 
-Download and install Golang from the link [download and install](https://go.dev/doc/install) 
+Requires Go 1.22.4+. Download and install from [go.dev](https://go.dev/doc/install).
 
 ## Execution
 
